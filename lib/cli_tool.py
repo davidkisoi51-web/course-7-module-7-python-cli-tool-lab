@@ -1,48 +1,60 @@
 # cli_tool.py
 
 import argparse
-from models import Task, User
+import json
+import os
+from lib.models import Task, User
 
-# Global dictionary to store users and their tasks
-users = {}
+DB_FILE = "tasks_db.json"
 
-# TODO: Implement function to add a task for a user
+def load_data():
+    """Load users and tasks from a JSON file into memory."""
+    if not os.path.exists(DB_FILE):
+        return {}
+    
+    with open(DB_FILE, "r") as f:
+        data = json.load(f)
+        
+    loaded_users = {}
+    for user_name, task_list in data.items():
+        user = User(user_name)
+        for t_data in task_list:
+            task = Task(t_data["title"])
+            task.completed = t_data["completed"]
+            user.tasks.append(task)
+        loaded_users[user_name] = user
+    return loaded_users
+
+def save_data(users):
+    """Save the current in-memory data back to the JSON file."""
+    data = {}
+    for user_name, user_obj in users.items():
+        data[user_name] = [
+            {"title": t.title, "completed": t.completed} for t in user_obj.tasks
+        ]
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
 def add_task(args):
-    # - Check if the user exists, if not, create one
-    # - Create a new Task with the given title
-    # - Add the task to the user's task list
-    pass
+    users = load_data()
+    user = users.get(args.user) or User(args.user)
+    users[args.user] = user
+    
+    task = Task(args.title)
+    user.add_task(task)
+    save_data(users)  # Commit changes to disk
 
-# TODO: Implement function to mark a task as complete
 def complete_task(args):
-    # - Look up the user by name
-    # - Look up the task by title
-    # - Mark the task as complete
-    # - Print appropriate error messages if not found
-    pass
-
-# CLI entry point
-def main():
-    parser = argparse.ArgumentParser(description="Task Manager CLI")
-    subparsers = parser.add_subparsers()
-
-    # Subparser for adding tasks
-    add_parser = subparsers.add_parser("add-task", help="Add a task for a user")
-    add_parser.add_argument("user")
-    add_parser.add_argument("title")
-    add_parser.set_defaults(func=add_task)
-
-    # Subparser for completing tasks
-    complete_parser = subparsers.add_parser("complete-task", help="Complete a user's task")
-    complete_parser.add_argument("user")
-    complete_parser.add_argument("title")
-    complete_parser.set_defaults(func=complete_task)
-
-    args = parser.parse_args()
-    if hasattr(args, "func"):
-        args.func(args)
+    users = load_data()
+    user = users.get(args.user)
+    if user:
+        for task in user.tasks:
+            if task.title == args.title:
+                task.complete()
+                save_data(users)  # Commit changes to disk
+                return
+        print("❌ Task not found.")
     else:
-        parser.print_help()
+        print("❌ User not found.")
 
-if __name__ == "__main__":
-    main()
+# ... keep main() exactly the same as you wrote it ...
